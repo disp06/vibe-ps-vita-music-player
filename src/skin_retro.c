@@ -86,30 +86,34 @@ static void reel(float cx, float cy, float r, float pack, float ang) {
     }
 }
 
+/* Cassette drawn upside-down, the way it sits in a real deck: exposed tape,
+ * guide rollers and the play head run along the TOP edge, reels below. */
 static void tape_deck(float x, float y, float w, float h) {
-    float r = fminf(h * 0.42f, w * 0.17f);
-    float cy = y + h * 0.48f;
+    float r = fminf(h * 0.38f, w * 0.17f);
+    float gy = y + 24;                 /* tape line under the head */
+    float cy = y + h - r - 6;          /* reel centres */
     float lx = x + w * 0.2f, rx = x + w * 0.8f;
     float p = ui_progress();
     float pmin = r * 0.34f, pmax = r * 0.9f;
     float pl = pmin + (pmax - pmin) * sqrtf(1 - p), pr = pmin + (pmax - pmin) * sqrtf(p);
     reel(lx, cy, r, pl, g_reel);
     reel(rx, cy, r, pr, g_reel * 1.07f);
-    /* tape path: packs -> guide rollers -> head */
-    float gy = y + h - 10;
-    float g1 = x + w * 0.06f, g2 = x + w * 0.94f;
     uint32_t ln = LN();
-    gfx_line(lx - pl, cy, g1, gy - 6, 1.5f, ln);
-    gfx_line(rx + pr, cy, g2, gy - 6, 1.5f, ln);
-    gfx_line(g1, gy - 6, x + w * 0.5f - 40, gy, 1.5f, ln);
-    gfx_line(x + w * 0.5f + 40, gy, g2, gy - 6, 1.5f, ln);
-    gfx_line(x + w * 0.5f - 40, gy, x + w * 0.5f + 40, gy, 1.5f, ln);
-    gfx_arc(g1, gy - 6, 5, 1.5f, 0, 6.2832f, ln);
-    gfx_arc(g2, gy - 6, 5, 1.5f, 0, 6.2832f, ln);
-    /* head block + capstan */
-    gfx_frame(x + w * 0.5f - 14, gy - 18, 28, 12, 1.5f, ACC());
-    gfx_circle(x + w * 0.5f + 52, gy - 4, 4, ln);
-    /* centre window: azimuth scale + moving index */
+    float g1 = x + w * 0.06f, g2 = x + w * 0.94f, mx = x + w * 0.5f;
+    /* packs -> guide rollers (top corners) -> across the head */
+    gfx_line(lx - pl, cy, g1, gy + 6, 1.5f, ln);
+    gfx_line(rx + pr, cy, g2, gy + 6, 1.5f, ln);
+    gfx_line(g1, gy + 6, mx - 40, gy, 1.5f, ln);
+    gfx_line(mx + 40, gy, g2, gy + 6, 1.5f, ln);
+    gfx_line(mx - 40, gy, mx + 40, gy, 1.5f, ln);
+    gfx_arc(g1, gy + 6, 5, 1.5f, 0, 6.2832f, ln);
+    gfx_arc(g2, gy + 6, 5, 1.5f, 0, 6.2832f, ln);
+    /* play head pressing down onto the tape, pinch roller + capstan beside it */
+    gfx_frame(mx - 14, gy - 14, 28, 12, 1.5f, ACC());
+    gfx_rect(mx - 3, gy - 2, 6, 2, ACC());
+    gfx_circle(mx + 52, gy - 4, 4, ln);
+    gfx_arc(mx - 52, gy - 5, 5, 1.5f, 0, 6.2832f, DIM());
+    /* centre window: counter scale + moving index */
     float sx0 = x + w * 0.36f, sx1 = x + w * 0.64f, sy = cy;
     for (int i = 0; i <= 24; i++) {
         float tx = sx0 + (sx1 - sx0) * i / 24;
@@ -117,9 +121,10 @@ static void tape_deck(float x, float y, float w, float h) {
     }
     float ix = sx0 + (sx1 - sx0) * p;
     gfx_rect(ix - 1.5f, sy - 16, 3, 32, ACC());
-    gfx_line(lx + r * 0.95f, cy - r * 0.92f, x + w * 0.5f - 12, y + 6, 1, DIM());
-    gfx_line(x + w * 0.5f + 12, y + 6, rx - r * 0.95f, cy - r * 0.92f, 1, DIM());
-    gfx_circle(x + w * 0.5f, y + 6, 3, LN());
+    /* shell outline (now below the reels) */
+    gfx_line(lx + r * 0.95f, cy + r * 0.92f, mx - 12, y + h - 2, 1, DIM());
+    gfx_line(mx + 12, y + h - 2, rx - r * 0.95f, cy + r * 0.92f, 1, DIM());
+    gfx_circle(mx, y + h - 2, 3, LN());
 }
 
 /* ---------------- viz panels ---------------- */

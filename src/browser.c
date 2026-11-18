@@ -49,12 +49,38 @@ static int cmp(const void *pa, const void *pb) {
     return (unsigned char)*x - (unsigned char)*y;
 }
 
+#ifdef __vita__
+#include <psp2/io/dirent.h>
+/* Talk to sceIo directly: newlib's opendir() resolves the path and stats it first,
+ * which fails on some SD2Vita / exFAT folders that sceIoDopen opens fine. */
+static int dopen_any(const char *path) {
+    int fd = sceIoDopen(path);
+    if (fd >= 0) return fd;
+    /* retry with the other spelling: "ux0:/Music" <-> "ux0:Music" */
+    char alt[600];
+    const char *c = strchr(path, ':');
+    if (c && c[1] == '/') snprintf(alt, sizeof alt, "%.*s%s", (int)(c - path + 1), path, c + 2);
+    else if (c) snprintf(alt, sizeof alt, "%.*s/%s", (int)(c - path + 1), path, c + 1);
+    else return fd;
+    int fd2 = sceIoDopen(alt);
+    return fd2 >= 0 ? fd2 : fd;
+}
+static int dir_exists(const char *p) {
+    int fd = dopen_any(p);
+    if (fd < 0) return 0;
+    sceIoDclose(fd);
+    return 1;
+}
+#else
 static int dir_exists(const char *p) {
     DIR *d = opendir(p);
     if (!d) return 0;
     closedir(d);
     return 1;
 }
+#endif
+
+int browser_last_error;
 
 int browser_open(Browser *b, const char *path) {
     b->n = 0;
@@ -69,24 +95,33 @@ int browser_open(Browser *b, const char *path) {
     }
     char p[520];
     snprintf(p, sizeof p, "%s%s", b->path, b->path[strlen(b->path) - 1] == ':' ? "/" : "");
+#ifdef __vita__
+    int fd = dopen_any(p);
+    if (fd < 0) { browser_last_error = fd; return -1; }
+    SceIoDirent de;
+    for (;;) {
+        memset(&de, 0, sizeof de);
+        if (sceIoDread(fd, &de) <= 0) break;
+        if (de.d_name[0] == '.') continue;
+        int isdir = SCE_S_ISDIR(de.d_stat.st_mode);
+        if (isdir || decoder_supported(de.d_name)) push(b, de.d_name, isdir);
+    }
+    sceIoDclose(fd);
+#else
     DIR *d = opendir(p);
-    if (!d) return -1;
+    if (!d) { browser_last_error = -1; return -1; }
     struct dirent *de;
     while ((de = readdir(d))) {
         if (de->d_name[0] == '.') continue;
-        int isdir;
-#ifdef __vita__
-        isdir = SCE_S_ISDIR(de->d_stat.st_mode);
-#else
         char full[1024];
         struct stat st;
         browser_full(b, -1, full, sizeof full);
         strncat(full, de->d_name, sizeof full - strlen(full) - 1);
-        isdir = stat(full, &st) == 0 && S_ISDIR(st.st_mode);
-#endif
+        int isdir = stat(full, &st) == 0 && S_ISDIR(st.st_mode);
         if (isdir || decoder_supported(de->d_name)) push(b, de->d_name, isdir);
     }
     closedir(d);
+#endif
     qsort(b->e, b->n, sizeof(Entry), cmp);
     return 0;
 }
@@ -100,11 +135,16 @@ void browser_full(Browser *b, int i, char *out, int max) {
     else snprintf(out, max, "%s%s%s", p, sep, b->e[i].name);
 }
 
-void browser_enter(Browser *b, int i) {
-    char p[512];
+int browser_enter(Browser *b, int i) {
+    char p[512], old[512];
     if (!b->path[0]) snprintf(p, sizeof p, "%s", b->e[i].name);
     else browser_full(b, i, p, sizeof p);
-    if (browser_open(b, p) != 0) browser_open(b, "");
+    snprintf(old, sizeof old, "%s", b->path);
+    if (browser_open(b, p) == 0) return 0;
+    int err = browser_last_error;
+    browser_open(b, old); /* stay in the current folder */
+    browser_last_error = err;
+    return -1;
 }
 
 int browser_up(Browser *b) {

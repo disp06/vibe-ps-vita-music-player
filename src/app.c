@@ -90,7 +90,13 @@ static void ensure_visible(void) {
 static void open_row(int i) {
     if (i < 0 || i >= ui.br.n) return;
     if (ui.br.e[i].is_dir) {
-        browser_enter(&ui.br, i);
+        if (browser_enter(&ui.br, i) != 0) {
+            char m[96];
+            snprintf(m, sizeof m, "can't open folder (0x%08X)", (unsigned)browser_last_error);
+            app_toast(m);
+            ui.sel = i;
+            return;
+        }
         ui.sel = 0;
         ui.scroll = 0;
         ui.list_t = ui.t;
