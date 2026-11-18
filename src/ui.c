@@ -69,7 +69,7 @@ void set_value(int i, char *b, int m) {
     case 5: snprintf(b, m, "%s", cfg.always_on ? "on - screen never dims" : "off"); break;
     case 6: snprintf(b, m, "%s", cfg.pixel_shift ? "on" : "off"); break;
     case 7: snprintf(b, m, "%s", cfg.fps60 ? "60 fps (smooth)" : "30 fps (battery saver)"); break;
-    default: snprintf(b, m, "Vibe 1.0  -  L/R skip, START settings"); break;
+    default: snprintf(b, m, "Vibe 1.0.1  -  L/R skip, START settings"); break;
     }
 }
 

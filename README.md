@@ -56,7 +56,7 @@ Enter/back follow the console's ✕/○ setting.
 
 ## Install
 
-Copy `vibe.vpk` to the Vita and install it with VitaShell (HENkaku/Enso).
+Grab `vibe.vpk` from [Releases](https://github.com/disp06/vibe-ps-vita-music-player/releases/latest), copy it to the Vita and install it with VitaShell (HENkaku/Enso).
 Put music anywhere on `ux0:` or `uma0:` — `ux0:music` opens first.
 Settings live in `ux0:data/Vibe/config.txt`.
 
@@ -98,6 +98,12 @@ make -C tools/preview && tools/preview/vibe_preview docs/previews
 | `src/font.c` | FreeType glyph atlas with Cyrillic fallback |
 | `src/app.c`, `ui.c` | pages, touch/buttons, settings, FFT visualiser, icons |
 | `src/skin_*.c` | the three skins |
+
+## How it was made
+
+Vibe was written end-to-end by an AI (Claude, by Anthropic) from a design brief and
+reference screenshots, then tested on hardware by the project owner. It is listed
+with the AI flag in NeoVitaDB.
 
 ## Credits & licences
 

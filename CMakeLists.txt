@@ -13,7 +13,7 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 set(VITA_APP_NAME "Vibe")
 set(VITA_TITLEID  "VIBE00001")
-set(VITA_VERSION  "01.00")
+set(VITA_VERSION  "01.01")
 # ATTRIBUTE: 0x8000 no communication zone, 0x8 keep running when deactivated
 # (background audio), 0x80000 no system suspend (power button blanks instead)
 set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS} -d PARENTAL_LEVEL=1 -d ATTRIBUTE=0x88008")
