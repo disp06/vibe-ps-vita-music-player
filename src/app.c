@@ -4,8 +4,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "i18n.h"
 #include "sys.h"
 #include "ui.h"
+
+/* a skipped track's cover is decoded only once the skipping has settled */
+#define COVER_SETTLE 0.4
+
+#define DEFAULT_MUSIC "ux0:music"
 
 static const Skin *g_skins[SKIN_COUNT] = {&skin_metro, &skin_retro, &skin_minimal};
 static const Skin *g_skin;
@@ -55,7 +61,7 @@ void app_init(const char *data_dir) {
     player_set_shuffle(cfg.shuffle);
     player_set_repeat(cfg.repeat);
     if (!cfg.last_dir[0] || browser_open(&ui.br, cfg.last_dir) != 0) {
-        if (browser_open(&ui.br, "ux0:/music") != 0 && browser_open(&ui.br, "ux0:/Music") != 0) browser_open(&ui.br, "");
+        if (browser_open(&ui.br, DEFAULT_MUSIC) != 0) browser_open(&ui.br, "");
     }
     ui.list_t = 0;
 }
@@ -92,7 +98,7 @@ static void open_row(int i) {
     if (ui.br.e[i].is_dir) {
         if (browser_enter(&ui.br, i) != 0) {
             char m[96];
-            snprintf(m, sizeof m, "can't open folder (0x%08X)", (unsigned)browser_last_error);
+            snprintf(m, sizeof m, tr(S_CANT_OPEN), (unsigned)browser_last_error);
             app_toast(m);
             ui.sel = i;
             return;
@@ -138,6 +144,7 @@ static void set_change(int i, int d) {
     case 5: cfg.always_on ^= 1; break;
     case 6: cfg.pixel_shift ^= 1; break;
     case 7: cfg.fps60 ^= 1; break;
+    case 8: cfg.lang = (cfg.lang + d + LANG_COUNT) % LANG_COUNT; break;
     default: return;
     }
     if (g_skin->reset) g_skin->reset(&ui);
@@ -145,7 +152,7 @@ static void set_change(int i, int d) {
 }
 
 static void do_action(int act, int param) {
-    char msg[64];
+    char msg[96];
     switch (act) {
     case ACT_PLAYPAUSE:
         if (ui.ps.qcount == 0) {
@@ -163,18 +170,18 @@ static void do_action(int act, int param) {
     case ACT_SHUFFLE:
         cfg.shuffle ^= 1;
         player_set_shuffle(cfg.shuffle);
-        app_toast(cfg.shuffle ? "shuffle on" : "shuffle off");
+        app_toast(tr(cfg.shuffle ? S_SHUFFLE_ON : S_SHUFFLE_OFF));
         save();
         break;
     case ACT_REPEAT:
         cfg.repeat = (cfg.repeat + 1) % 3;
         player_set_repeat(cfg.repeat);
-        app_toast(cfg.repeat == REPEAT_OFF ? "repeat off" : cfg.repeat == REPEAT_ONE ? "repeat track" : "repeat all");
+        app_toast(tr(cfg.repeat == REPEAT_OFF ? S_REPEAT_OFF : cfg.repeat == REPEAT_ONE ? S_REPEAT_ONE : S_REPEAT_ALL));
         save();
         break;
     case ACT_ALWAYSON:
         cfg.always_on ^= 1;
-        snprintf(msg, sizeof msg, "always on: %s", cfg.always_on ? "ON" : "off");
+        snprintf(msg, sizeof msg, tr(S_ALWAYS_FMT), tr(cfg.always_on ? S_ON : S_OFF));
         app_toast(msg);
         save();
         break;
@@ -384,7 +391,7 @@ void app_update(float dt, double now) {
 
     uint8_t *cv;
     int cs, cid;
-    if (player_take_cover(&cv, &cs, &cid)) {
+    if (ui.t - ui.track_t >= COVER_SETTLE && player_take_cover(&cv, &cs, &cid)) {
         if (ui.cover) gfx_tex_free(ui.cover);
         ui.cover = cv ? gfx_tex_load(cv, cs) : NULL;
         ui.cover_id = cid;

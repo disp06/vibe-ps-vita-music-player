@@ -92,7 +92,7 @@ int main(void) {
 
         /* display policy */
         if (!sys_screen_on()) {
-            if (any) { sys_screen(1); swallow = 1; last_input = now; }
+            if (any) { sys_screen(1); sys_perf(PERF_UI); swallow = 1; last_input = now; }
         } else if (cfg.screen_off && !cfg.always_on && playing && sys_foreground() &&
                    now - last_input > cfg.screen_off && now - ui.toast_t > 2) {
             sys_screen(0);
@@ -137,6 +137,7 @@ int main(void) {
         else
             gfx_set_shift(0, 0);
 
+        font_frame_begin();
         gfx_begin(RGB(0, 0, 0));
         app_draw();
         gfx_end();

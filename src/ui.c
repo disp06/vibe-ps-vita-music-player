@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "i18n.h"
 
 UI ui;
 
@@ -43,33 +44,34 @@ float ui_progress(void) {
     return ui.ps.dur > 0 ? ui_clamp((float)(ui.pos_smooth / ui.ps.dur), 0, 1) : 0;
 }
 
-const char *ui_title(void) { return ui.ps.title[0] ? ui.ps.title : (ui.ps.qcount ? "" : "nothing playing"); }
-const char *ui_artist(void) { return ui.ps.artist[0] ? ui.ps.artist : (ui.ps.qcount ? "Unknown artist" : "pick a track in collection"); }
+const char *ui_title(void) { return ui.ps.title[0] ? ui.ps.title : (ui.ps.qcount ? "" : tr(S_NOTHING_PLAYING)); }
+const char *ui_artist(void) { return ui.ps.artist[0] ? ui.ps.artist : (ui.ps.qcount ? tr(S_UNKNOWN_ARTIST) : tr(S_PICK_TRACK)); }
 int ui_playing(void) { return ui.ps.status == PS_PLAYING; }
 
 /* ---------------- settings rows ---------------- */
 
-static const char *k_skin[] = {"Windows Phone Metro", "Retro-Futurism", "Minimal"};
-static const char *k_orient[] = {"landscape", "portrait", "portrait (flipped)"};
-const char *k_accent_names[] = {"lime", "magenta", "cyan", "orange", "cobalt", "crimson"};
-static const char *k_labels[NSET] = {"style", "theme", "accent colour", "orientation", "screen off timer",
-                                     "always on", "burn-in pixel shift", "frame rate", "about"};
+static const int k_skin[SKIN_COUNT] = {S_SKIN_METRO, S_SKIN_RETRO, S_SKIN_MINIMAL};
+static const int k_orient[3] = {S_ORIENT_LAND, S_ORIENT_PORT, S_ORIENT_FLIP};
+static const int k_accent[6] = {S_ACC0, S_ACC1, S_ACC2, S_ACC3, S_ACC4, S_ACC5};
+static const int k_labels[NSET] = {S_L_STYLE, S_L_THEME, S_L_ACCENT, S_L_ORIENT, S_L_SCREEN_OFF,
+                                   S_L_ALWAYS_ON, S_L_PIXEL, S_L_FPS, S_L_LANGUAGE, S_L_ABOUT};
 
-const char *set_label(int i) { return i >= 0 && i < NSET ? k_labels[i] : ""; }
+const char *set_label(int i) { return i >= 0 && i < NSET ? tr(k_labels[i]) : ""; }
 int set_is_toggle(int i) { return i == 5 || i == 6; }
 int set_toggle_on(int i) { return i == 5 ? cfg.always_on : i == 6 ? cfg.pixel_shift : 0; }
 
 void set_value(int i, char *b, int m) {
     switch (i) {
-    case 0: snprintf(b, m, "%s", k_skin[cfg.skin]); break;
-    case 1: snprintf(b, m, "%s", cfg.dark ? "dark (true black)" : "light"); break;
-    case 2: snprintf(b, m, "%s", k_accent_names[cfg.accent % 6]); break;
-    case 3: snprintf(b, m, "%s", k_orient[cfg.orient]); break;
-    case 4: if (cfg.screen_off) snprintf(b, m, "after %d seconds", cfg.screen_off); else snprintf(b, m, "never"); break;
-    case 5: snprintf(b, m, "%s", cfg.always_on ? "on - screen never dims" : "off"); break;
-    case 6: snprintf(b, m, "%s", cfg.pixel_shift ? "on" : "off"); break;
-    case 7: snprintf(b, m, "%s", cfg.fps60 ? "60 fps (smooth)" : "30 fps (battery saver)"); break;
-    default: snprintf(b, m, "Vibe 1.0.1  -  L/R skip, START settings"); break;
+    case 0: snprintf(b, m, "%s", tr(k_skin[cfg.skin])); break;
+    case 1: snprintf(b, m, "%s", tr(cfg.dark ? S_DARK : S_LIGHT)); break;
+    case 2: snprintf(b, m, "%s", tr(k_accent[cfg.accent % 6])); break;
+    case 3: snprintf(b, m, "%s", tr(k_orient[cfg.orient])); break;
+    case 4: if (cfg.screen_off) snprintf(b, m, tr(S_AFTER_SEC), cfg.screen_off); else snprintf(b, m, "%s", tr(S_NEVER)); break;
+    case 5: snprintf(b, m, "%s", tr(cfg.always_on ? S_ALWAYS_ON_VAL : S_OFF)); break;
+    case 6: snprintf(b, m, "%s", tr(cfg.pixel_shift ? S_ON : S_OFF)); break;
+    case 7: snprintf(b, m, "%s", tr(cfg.fps60 ? S_FPS60 : S_FPS30)); break;
+    case 8: snprintf(b, m, "%s", lang_name(cfg.lang)); break;
+    default: snprintf(b, m, "%s", tr(S_ABOUT)); break;
     }
 }
 

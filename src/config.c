@@ -1,5 +1,6 @@
 #include "config.h"
 #include <stdio.h>
+#include "i18n.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,10 +14,11 @@ void config_defaults(void) {
     cfg.screen_off = 10;
     cfg.pixel_shift = 1;
     cfg.repeat = 2;
+    cfg.lang = LANG_EN;
 }
 
 #define INT_KEYS(X) X(skin) X(dark) X(accent) X(orient) X(screen_off) X(always_on) \
-    X(pixel_shift) X(fps60) X(shuffle) X(repeat)
+    X(pixel_shift) X(fps60) X(shuffle) X(repeat) X(lang)
 
 void config_load(const char *path) {
     config_defaults();
@@ -37,6 +39,7 @@ void config_load(const char *path) {
     if (cfg.skin < 0 || cfg.skin >= SKIN_COUNT) cfg.skin = 0;
     if (cfg.orient < 0 || cfg.orient > 2) cfg.orient = 0;
     if (cfg.screen_off != 0 && cfg.screen_off != 5 && cfg.screen_off != 10 && cfg.screen_off != 15) cfg.screen_off = 10;
+    if (cfg.lang < 0 || cfg.lang >= LANG_COUNT) cfg.lang = LANG_EN;
 }
 
 void config_save(const char *path) {

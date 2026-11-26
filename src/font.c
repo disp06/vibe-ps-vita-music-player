@@ -1,5 +1,6 @@
 /* FreeType glyph cache in one 1024x1024 A8 atlas, keyed by (font, size, codepoint).
- * Unknown glyphs fall back to the Regular face (e.g. Cyrillic in the mono font). */
+ * A glyph missing from the skin face falls back to Regular, then to the script
+ * face that covers it (CJK, Devanagari, Arabic). Text goes through shape.c first. */
 #include "font.h"
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -7,10 +8,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "shape.h"
 
 #define ATLAS 1024
 #define HSIZE 4096
 #define MAXRASTER 160
+#define MAXTEXT 512
 
 typedef struct { uint32_t key; int16_t x, y, w, h, l, t; float adv; } Glyph;
 
@@ -22,7 +25,8 @@ static Glyph g_tab[HSIZE];
 static int g_used;
 static int g_px, g_py, g_rowh;
 
-static const char *g_files[FONT_COUNT] = {"OpenSans-Light.ttf", "OpenSans-Regular.ttf", "ShareTechMono.ttf"};
+static const char *g_files[FONT_COUNT] = {"OpenSans-Light.ttf", "OpenSans-Regular.ttf", "ShareTechMono.ttf",
+                                          "NotoSansSC.ttf", "NotoSansDevanagari.ttf", "NotoSansArabic.ttf"};
 
 int utf8_next(const char **ps) {
     const unsigned char *s = (const unsigned char *)*ps;
@@ -42,7 +46,7 @@ int font_init(const char *dir) {
     char path[256];
     for (int i = 0; i < FONT_COUNT; i++) {
         snprintf(path, sizeof path, "%s/%s", dir, g_files[i]);
-        if (FT_New_Face(g_ft, path, 0, &g_face[i])) return -1;
+        if (FT_New_Face(g_ft, path, 0, &g_face[i]) && i <= FONT_REGULAR) return -1;
     }
     g_atlas = gfx_tex_create(ATLAS, ATLAS, 0);
     return g_atlas ? 0 : -1;
@@ -66,6 +70,27 @@ static void atlas_reset(void) {
     g_px = g_py = g_rowh = 0;
 }
 
+void font_frame_begin(void) {
+    if (g_atlas && (g_used > HSIZE * 3 / 4 || g_py > ATLAS * 3 / 4)) atlas_reset();
+}
+
+static int script_face(uint32_t cp) {
+    if ((cp >= 0x0900 && cp <= 0x097F) || cp == 0x200C || cp == 0x200D) return FONT_DEVA;
+    if ((cp >= 0x0600 && cp <= 0x06FF) || (cp >= 0x0750 && cp <= 0x077F) ||
+        (cp >= 0xFB50 && cp <= 0xFDFF) || (cp >= 0xFE70 && cp <= 0xFEFF)) return FONT_ARAB;
+    if ((cp >= 0x2E80 && cp <= 0x9FFF) || (cp >= 0x3000 && cp <= 0x303F) || (cp >= 0xFF00 && cp <= 0xFFEF)) return FONT_CJK;
+    return -1;
+}
+
+/* the face that will draw cp, or -1 if none has it */
+static int resolve(int f, int cp) {
+    if (g_face[f] && FT_Get_Char_Index(g_face[f], cp)) return f;
+    if (FT_Get_Char_Index(g_face[FONT_REGULAR], cp)) return FONT_REGULAR;
+    int s = script_face((uint32_t)cp);
+    if (s >= 0 && g_face[s] && FT_Get_Char_Index(g_face[s], cp)) return s;
+    return -1;
+}
+
 static Glyph *get_glyph(int f, int size, int cp) {
     uint32_t key = ((uint32_t)(f + 1) << 28) | ((uint32_t)size << 20) | (cp & 0xFFFFF);
     uint32_t h = (key * 2654435761u) >> 20;
@@ -74,23 +99,33 @@ static Glyph *get_glyph(int f, int size, int cp) {
         if (g->key == key) return g;
         if (g->key == 0) break;
     }
-    if (g_used > HSIZE * 3 / 4) atlas_reset();
+    /* full caches are cleared by font_frame_begin, never in the middle of a frame:
+     * glyphs already queued for this frame still point into the atlas */
+    if (g_used > HSIZE * 3 / 4) return NULL;
 
-    int ff = f;
-    if (FT_Get_Char_Index(g_face[ff], cp) == 0 && ff != FONT_REGULAR) ff = FONT_REGULAR;
-    set_size(ff, size);
-    if (FT_Load_Char(g_face[ff], cp, FT_LOAD_RENDER | FT_LOAD_TARGET_LIGHT)) return NULL;
-    FT_GlyphSlot gs = g_face[ff]->glyph;
-    int w = gs->bitmap.width, hh = gs->bitmap.rows;
-    if (g_px + w + 1 > ATLAS) { g_px = 0; g_py += g_rowh + 1; g_rowh = 0; }
-    if (g_py + hh + 1 > ATLAS) {
-        atlas_reset();
-        return get_glyph(f, size, cp);
+    int ff = resolve(f, cp);
+    int w = 0, hh = 0, l = 0, t = 0;
+    float adv = 0;
+    unsigned char *src = NULL;
+    int pitch = 0;
+    if (ff >= 0) {
+        set_size(ff, size);
+        if (FT_Load_Char(g_face[ff], cp, FT_LOAD_RENDER | FT_LOAD_TARGET_LIGHT)) return NULL;
+        FT_GlyphSlot gs = g_face[ff]->glyph;
+        w = gs->bitmap.width; hh = gs->bitmap.rows;
+        l = gs->bitmap_left; t = gs->bitmap_top;
+        adv = gs->advance.x / 64.0f;
+        src = gs->bitmap.buffer;
+        pitch = gs->bitmap.pitch;
     }
-    uint8_t *d = gfx_tex_data(g_atlas);
-    int st = gfx_tex_stride(g_atlas);
-    for (int y = 0; y < hh; y++) memcpy(d + (g_py + y) * st + g_px, gs->bitmap.buffer + y * gs->bitmap.pitch, w);
-    gfx_tex_dirty(g_atlas);
+    if (g_px + w + 1 > ATLAS) { g_px = 0; g_py += g_rowh + 1; g_rowh = 0; }
+    if (g_py + hh + 1 > ATLAS) return NULL;
+    if (w > 0 && hh > 0) {
+        uint8_t *d = gfx_tex_data(g_atlas);
+        int st = gfx_tex_stride(g_atlas);
+        for (int y = 0; y < hh; y++) memcpy(d + (g_py + y) * st + g_px, src + y * pitch, w);
+        gfx_tex_dirty(g_atlas);
+    }
 
     Glyph *g = NULL;
     for (int probe = 0; probe < HSIZE; probe++) {
@@ -99,10 +134,12 @@ static Glyph *get_glyph(int f, int size, int cp) {
     }
     g->key = key;
     g->x = g_px; g->y = g_py; g->w = w; g->h = hh;
-    g->l = gs->bitmap_left; g->t = gs->bitmap_top;
-    g->adv = gs->advance.x / 64.0f;
-    g_px += w + 1;
-    if (hh > g_rowh) g_rowh = hh;
+    g->l = l; g->t = t;
+    g->adv = adv;
+    if (w > 0 && hh > 0) {
+        g_px += w + 1;
+        if (hh > g_rowh) g_rowh = hh;
+    }
     g_used++;
     return g;
 }
@@ -123,59 +160,61 @@ float font_ascent(int f, float px) {
     return g_face[f]->size->metrics.ascender / 64.0f * k;
 }
 
-static float run(int f, float px, float x, float y, uint32_t c, const char *s, float tracking, int draw, float maxw, int *cut) {
+static float run_cp(int f, float px, float x, float y, uint32_t c, const uint32_t *cps, int n, float tr, int draw) {
     int size; float k;
     raster_for(px, &size, &k);
-    float base = y + font_ascent(f, px);
+    float base = draw ? y + font_ascent(f, px) : 0;
     float pen = x;
-    const char *p = s;
-    int cp;
-    while ((cp = utf8_next(&p))) {
-        Glyph *g = get_glyph(f, size, cp);
+    for (int i = 0; i < n; i++) {
+        Glyph *g = get_glyph(f, size, (int)cps[i]);
         if (!g) continue;
-        float adv = g->adv * k + tracking;
-        if (maxw > 0 && pen + adv - x > maxw) { if (cut) *cut = (int)(p - s) - 1; break; }
         if (draw && g->w > 0)
             gfx_tex_draw(g_atlas, g->x, g->y, g->w, g->h, roundf(pen + g->l * k), roundf(base - g->t * k),
                          g->w * k, g->h * k, c);
-        pen += adv;
+        pen += g->adv * k + tr;
     }
     return pen - x;
 }
 
-float font_draw_ex(int f, float px, float x, float y, uint32_t c, const char *s, float tr) { return run(f, px, x, y, c, s, tr, 1, 0, NULL); }
-float font_draw(int f, float px, float x, float y, uint32_t c, const char *s) { return run(f, px, x, y, c, s, 0, 1, 0, NULL); }
-float font_width_ex(int f, float px, const char *s, float tr) { return run(f, px, 0, 0, 0, s, tr, 0, 0, NULL); }
-float font_width(int f, float px, const char *s) { return run(f, px, 0, 0, 0, s, 0, 0, 0, NULL); }
+float font_draw_ex(int f, float px, float x, float y, uint32_t c, const char *s, float tr) {
+    uint32_t cps[MAXTEXT];
+    int n = shape_text(s, cps, MAXTEXT);
+    return run_cp(f, px, x, y, c, cps, n, tr, 1);
+}
+float font_draw(int f, float px, float x, float y, uint32_t c, const char *s) { return font_draw_ex(f, px, x, y, c, s, 0); }
+
+float font_width_ex(int f, float px, const char *s, float tr) {
+    uint32_t cps[MAXTEXT];
+    int n = shape_text(s, cps, MAXTEXT);
+    return run_cp(f, px, 0, 0, 0, cps, n, tr, 0);
+}
+float font_width(int f, float px, const char *s) { return font_width_ex(f, px, s, 0); }
+
 float font_draw_right(int f, float px, float xr, float y, uint32_t c, const char *s) { float w = font_width(f, px, s); font_draw(f, px, xr - w, y, c, s); return w; }
 float font_draw_center(int f, float px, float xc, float y, uint32_t c, const char *s) { float w = font_width(f, px, s); font_draw(f, px, xc - w / 2, y, c, s); return w; }
 
 float font_draw_fit_ex(int f, float px, float x, float y, float maxw, uint32_t c, const char *s, float tr) {
-    float w = font_width_ex(f, px, s, tr);
-    if (w <= maxw) return font_draw_ex(f, px, x, y, c, s, tr);
-    float ell = font_width_ex(f, px, "...", tr);
-    char buf[512];
-    size_t n = strlen(s);
-    if (n >= sizeof buf) n = sizeof buf - 1;
-    /* find the longest UTF-8 prefix that fits */
-    const char *p = s, *last = s;
-    float pen = 0;
+    uint32_t cps[MAXTEXT];
+    int n = shape_text(s, cps, MAXTEXT);
+    if (run_cp(f, px, 0, 0, 0, cps, n, tr, 0) <= maxw) return run_cp(f, px, x, y, c, cps, n, tr, 1);
+    uint32_t ell[3] = {'.', '.', '.'};
+    float ew = run_cp(f, px, 0, 0, 0, ell, 3, tr, 0);
     int size; float k;
     raster_for(px, &size, &k);
-    int cp;
-    while ((cp = utf8_next(&p))) {
-        Glyph *g = get_glyph(f, size, cp);
+    float pen = 0;
+    int keep = 0;
+    for (int i = 0; i < n; i++) {
+        Glyph *g = get_glyph(f, size, (int)cps[i]);
         float adv = g ? g->adv * k + tr : 0;
-        if (pen + adv + ell > maxw) break;
+        if (pen + adv + ew > maxw) break;
         pen += adv;
-        last = p;
+        keep = i + 1;
     }
-    n = (size_t)(last - s);
-    if (n > sizeof buf - 4) n = sizeof buf - 4;
-    memcpy(buf, s, n);
-    while (n > 0 && buf[n - 1] == ' ') n--;
-    strcpy(buf + n, "...");
-    return font_draw_ex(f, px, x, y, c, buf, tr);
+    while (keep > 0 && cps[keep - 1] == ' ') keep--;
+    uint32_t out[MAXTEXT];
+    memcpy(out, cps, (size_t)keep * sizeof *out);
+    memcpy(out + keep, ell, sizeof ell);
+    return run_cp(f, px, x, y, c, out, keep + 3, tr, 1);
 }
 float font_draw_fit(int f, float px, float x, float y, float maxw, uint32_t c, const char *s) { return font_draw_fit_ex(f, px, x, y, maxw, c, s, 0); }
 
@@ -190,13 +229,16 @@ GTex *font_render_gradient(int f, int px, const char *s, uint32_t c0, uint32_t c
     uint8_t *d = gfx_tex_data(t);
     int st = gfx_tex_stride(t);
     memset(d, 0, st * h);
+    uint32_t cps[MAXTEXT];
+    int n = shape_text(s, cps, MAXTEXT);
     float pen = 0;
-    const char *p = s;
-    int cp;
-    while ((cp = utf8_next(&p))) {
-        set_size(f, px);
-        if (FT_Load_Char(fc, cp, FT_LOAD_RENDER | FT_LOAD_TARGET_LIGHT)) continue;
-        FT_GlyphSlot gs = fc->glyph;
+    for (int i = 0; i < n; i++) {
+        int ff = resolve(f, (int)cps[i]);
+        if (ff < 0) continue;
+        set_size(ff, px);
+        FT_Face fx = g_face[ff];
+        if (FT_Load_Char(fx, cps[i], FT_LOAD_RENDER | FT_LOAD_TARGET_LIGHT)) continue;
+        FT_GlyphSlot gs = fx->glyph;
         int gx = (int)roundf(pen) + gs->bitmap_left + 1, gy = asc - gs->bitmap_top;
         for (int y = 0; y < (int)gs->bitmap.rows; y++)
             for (int x = 0; x < (int)gs->bitmap.width; x++) {
@@ -215,6 +257,6 @@ GTex *font_render_gradient(int f, int px, const char *s, uint32_t c0, uint32_t c
     gfx_tex_dirty(t);
     *ow = w;
     *oh = h;
-    g_cur_size[f] = 0;
+    memset(g_cur_size, 0, sizeof g_cur_size);
     return t;
 }

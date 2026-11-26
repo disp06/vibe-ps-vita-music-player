@@ -18,7 +18,7 @@ typedef struct { float x, y, w, h; int act, param; } Hit;
 
 #define NBANDS 24
 #define NWAVE 256
-#define NSET 9
+#define NSET 10
 
 typedef struct UI {
     int W, H, land;

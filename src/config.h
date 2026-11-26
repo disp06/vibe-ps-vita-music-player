@@ -13,6 +13,7 @@ typedef struct {
     int pixel_shift;   /* OLED burn-in protection while always-on */
     int fps60;
     int shuffle, repeat;
+    int lang;          /* LANG_* from i18n.h, default English */
     char last_dir[512];
 } Config;
 

@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "i18n.h"
 #include "sys.h"
 #include "ui.h"
 
@@ -165,7 +166,7 @@ static void spectrum(float x, float y, float w, float h) {
 }
 
 static void levels(float x, float y, float w, float h) {
-    panel(x, y, w, h, "STEREO LEVEL");
+    panel(x, y, w, h, tr(S_RET_LEVEL));
     float iy = y + 24, bh = (h - 34) / 2 - 3;
     label(x + 10, iy - 1, "L", LN());
     label(x + 10, iy + bh + 5, "R", LN());
@@ -211,10 +212,10 @@ static void seek(float x, float y, float w, float h) {
 
 static void title_block(float x, float y, float w, float px) {
     char s[96];
-    snprintf(s, sizeof s, "NOW PLAYING // CASSETTE %c", 'A' + (ui.ps.qindex % 26));
+    snprintf(s, sizeof s, tr(S_RET_NOW), 'A' + (ui.ps.qindex % 26));
     label(x, y, s, DIM());
     font_draw_fit_ex(FONT_MONO, px, x, y + 16, w, LN(), ui_title(), 0.5f);
-    float ax = x + label(x, y + 18 + px * 1.25f, "ARTIST // ", ACC());
+    float ax = x + label(x, y + 18 + px * 1.25f, tr(S_RET_ARTIST), ACC());
     font_draw_fit_ex(FONT_MONO, 15, ax, y + 18 + px * 1.25f - 2, w - (ax - x), LN(), ui_artist(), 1.0f);
     if (ui.ps.codec) {
         char sig[96];
@@ -275,11 +276,11 @@ static void page_files(void) {
     float x = 24, y = 58, w = W - 48;
     float bottom = H - (ui.land ? 112 : 136);
     char t[600];
-    snprintf(t, sizeof t, "FILE SYSTEM // %s", ui.br.path[0] ? ui.br.path : "DEVICES");
+    snprintf(t, sizeof t, tr(S_RET_FILESYS), ui.br.path[0] ? ui.br.path : tr(S_RET_DEVICES));
     panel(x, y, w, bottom - y, NULL);
     font_draw_fit_ex(FONT_MONO, 13, x + 18, y + 4, w - 140, LN(), t, 1.6f);
     gfx_rect(x + 8, y + 8, 4, 4, ACC());
-    if (ui.br.path[0]) { box_btn(x + w - 92, y + 6, 80, 22, ACT_UP, 0, "< UP", 0); }
+    if (ui.br.path[0]) { box_btn(x + w - 92, y + 6, 80, 22, ACT_UP, 0, tr(S_UP), 0); }
     float ly = y + 36, lh = bottom - ly - 8, rh = ui.land ? 34 : 40;
     ui_list_area(x, ly, w - 20, lh, rh);
     gfx_clip(x + 2, ly, w - 4, lh);
@@ -326,13 +327,13 @@ static void page_files(void) {
         gfx_rect(rx, ly, 2, lh, FAINT());
         gfx_rect(rx - 2, tp, 6, th, LN());
     }
-    if (!ui.br.n) label(x + 16, ly + 8, "NO AUDIO FILES // MP3 OGG FLAC WAV", DIM());
+    if (!ui.br.n) label(x + 16, ly + 8, tr(S_RET_NOAUDIO), DIM());
 
     /* status strip */
     float sy = bottom + 10, sh = H - 46 - sy;
     panel(x, sy, w, sh, NULL);
     char st[300];
-    snprintf(st, sizeof st, "%s // ", ui_playing() ? "PLAY" : ui.ps.status == PS_PAUSED ? "PAUSE" : "IDLE");
+    snprintf(st, sizeof st, "%s // ", tr(ui_playing() ? S_PLAY : ui.ps.status == PS_PAUSED ? S_PAUSE : S_IDLE));
     float tx = x + 14 + label(x + 14, sy + 8, st, ACC());
     font_draw_fit_ex(FONT_MONO, 15, tx, sy + 6, w - (tx - x) - 220, LN(), ui_title(), 0.6f);
     ui_hit(x, sy, w - 210, sh, ACT_PAGE, PAGE_PLAYING);
@@ -356,7 +357,7 @@ static void page_files(void) {
 static void page_sys(void) {
     float W = ui.W, H = ui.H;
     float x = 24, y = 58, w = W - 48, h = H - 46 - y;
-    panel(x, y, w, h, "SYSTEM CONFIGURATION // SAVED TO UX0:DATA/VIBE");
+    panel(x, y, w, h, tr(S_RET_CONFIG));
     float ly = y + 34, lh = h - 44, rh = ui.land ? 46 : 74;
     ui_list_area(x, ly, w, lh, rh);
     gfx_clip(x + 2, ly, w - 4, lh);
@@ -407,7 +408,7 @@ static void chrome(void) {
         gfx_rect(W - 12 - (i % 4 ? 5 : 9), ty, i % 4 ? 5 : 9, 1, DIM());
     }
     /* top bar: tabs double as page navigation */
-    static const char *tabs[3] = {"DECK", "FILES", "SYS"};
+    const char *tabs[3] = {tr(S_RET_DECK), tr(S_RET_FILES), tr(S_RET_SYS)};
     float tx = ui.land ? 300 : 24, ty = 20, tw = ui.land ? 92 : 80;
     if (ui.land) {
         label(26, 24, "VIBE // AUDIO DECK", LN());
@@ -429,8 +430,9 @@ static void chrome(void) {
     icon_battery(rx - 30, 24, 26, 14, sys_battery(), LN());
     font_draw_right(FONT_MONO, 15, rx - 40, 22, LN(), clk);
     /* bottom hint strip, like the reference "OK  FDAI  MFD  RDR  NAV" */
-    static const char *hints_l[] = {"L/R SKIP", "X PLAY", "O BACK", "TRI FILES", "SQ ALWAYS-ON", "START SYS", "SELECT BLANK"};
-    static const char *hints_p[] = {"L/R SKIP", "TRI FILES", "SQ A-ON", "SEL BLANK"};
+    const char *hints_l[] = {tr(S_HINT_SKIP), tr(S_HINT_PLAY), tr(S_HINT_BACK), tr(S_HINT_FILES),
+                             tr(S_HINT_ALWAYS), tr(S_HINT_SYS), tr(S_HINT_BLANK)};
+    const char *hints_p[] = {tr(S_HINT_SKIP), tr(S_HINT_FILES), tr(S_HINT_ALWAYS), tr(S_HINT_BLANK)};
     const char **hints = ui.land ? hints_l : hints_p;
     int nh = ui.land ? 7 : 4;
     float hy = H - 34, hw = (W - 48) / nh;

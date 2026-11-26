@@ -29,13 +29,44 @@ int decoder_for(const char *path, Decoder *d) {
     return 1;
 }
 
+static int utf8_ok(const unsigned char *s, int n) {
+    for (int i = 0; i < n;) {
+        unsigned c = s[i];
+        if (c < 0x80) { i++; continue; }
+        int k = c >= 0xC2 && c <= 0xDF ? 1 : c >= 0xE0 && c <= 0xEF ? 2 : c >= 0xF0 && c <= 0xF4 ? 3 : -1;
+        if (k < 0 || i + k >= n) return 0;
+        for (int j = 1; j <= k; j++)
+            if ((s[i + j] & 0xC0) != 0x80) return 0;
+        i += k + 1;
+    }
+    return 1;
+}
+
+/* tag text becomes UTF-8: bytes that are not valid UTF-8 are taken as Latin-1
+ * (ID3v1, RIFF INFO), and the result is cut on a character boundary */
 void ti_set(char *dst, const char *src, int max) {
+    char raw[1024], conv[2048];
     int n = 0;
-    while (src[n] && n < max - 1) n++;
-    memcpy(dst, src, n);
-    dst[n] = 0;
-    /* trim */
-    while (n > 0 && (dst[n - 1] == ' ' || dst[n - 1] == '\r' || dst[n - 1] == '\n')) dst[--n] = 0;
+    while (n < 1000 && src[n]) { raw[n] = src[n]; n++; }
+    const char *s = raw;
+    int m = n;
+    if (!utf8_ok((const unsigned char *)raw, n)) {
+        int o = 0;
+        for (int i = 0; i < n; i++) {
+            unsigned char c = raw[i];
+            if (c < 0x80) conv[o++] = c;
+            else { conv[o++] = 0xC0 | (c >> 6); conv[o++] = 0x80 | (c & 0x3F); }
+        }
+        s = conv;
+        m = o;
+    }
+    while (m > 0 && (s[m - 1] == ' ' || s[m - 1] == '\r' || s[m - 1] == '\n')) m--;
+    if (m > max - 1) {
+        m = max - 1;
+        while (m > 0 && ((unsigned char)s[m] & 0xC0) == 0x80) m--;
+    }
+    memcpy(dst, s, m);
+    dst[m] = 0;
 }
 
 static int b64v(int c) {

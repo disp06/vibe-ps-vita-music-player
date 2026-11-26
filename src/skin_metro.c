@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "i18n.h"
 #include "sys.h"
 #include "ui.h"
 
@@ -115,14 +116,16 @@ static void appbar(void) {
     ui_hit(ui.W - 80, y, 80, h, ACT_MORE, 0);
 }
 
-static const char *k_titles[PAGE_COUNT] = {"live", "collection", "settings"};
+static const char *title_of(int page) {
+    return tr(page == PAGE_PLAYING ? S_LIVE : page == PAGE_LIBRARY ? S_COLLECTION : S_SETTINGS);
+}
 
 static float pivot_title(int page) {
     float px = ui.land ? 50 : 66, y = ui.land ? 76 : 110;
     float x = 24 + g_ox;
-    float w = font_draw(FONT_LIGHT, px, x, y, A(FG()), k_titles[page]);
+    float w = font_draw(FONT_LIGHT, px, x, y, A(FG()), title_of(page));
     /* the next pivot peeks in, dimmed, like a real pivot control */
-    font_draw(FONT_LIGHT, px, x + w + 36, y, A(col_alpha(SUB(), 0.45f)), k_titles[(page + 1) % PAGE_COUNT]);
+    font_draw(FONT_LIGHT, px, x + w + 36, y, A(col_alpha(SUB(), 0.45f)), title_of((page + 1) % PAGE_COUNT));
     ui_hit(x + w + 20, y, 300, px * 1.2f, ACT_PAGE, (page + 1) % PAGE_COUNT);
     return y + px * 1.36f;
 }
@@ -146,7 +149,7 @@ static void page_playing(void) {
     }
 
     char nx[300];
-    snprintf(nx, sizeof nx, "Up next: %s", ui.ps.next_title[0] ? ui.ps.next_title : "-");
+    snprintf(nx, sizeof nx, tr(S_UP_NEXT), ui.ps.next_title[0] ? ui.ps.next_title : "-");
     if (ui.land) {
         float s = 274, x = 28 + g_ox, y = top + 4;
         cover(x, y, s);
@@ -220,7 +223,7 @@ static void page_library(void) {
     /* breadcrumb / up */
     char path[540];
     if (ui.br.path[0]) snprintf(path, sizeof path, "<  %s", ui.br.path);
-    else snprintf(path, sizeof path, "devices");
+    else snprintf(path, sizeof path, "%s", tr(S_DEVICES));
     font_draw_fit(FONT_REGULAR, 19, x, top - 10, ui.W - 56, A(ui.br.path[0] ? ACC() : SUB()), path);
     if (ui.br.path[0]) ui_hit(0, top - 16, ui.W, 34, ACT_UP, 0);
     float ly = top + 26, lh = ui.H - bar - mini - ly - 6;
@@ -261,7 +264,7 @@ static void page_library(void) {
         g_alpha = sa;
     }
     gfx_noclip();
-    if (!ui.br.n) font_draw(FONT_LIGHT, 28, x, ly + 10, A(SUB()), "no music here");
+    if (!ui.br.n) font_draw(FONT_LIGHT, 28, x, ly + 10, A(SUB()), tr(S_NO_MUSIC));
     mini_player(ui.H - bar - mini, mini);
 }
 
@@ -289,7 +292,7 @@ static void page_settings(void) {
         int sel = i == ui.set_sel;
         font_draw(FONT_LIGHT, ui.land ? 28 : 32, x, y, A(sel ? ACC() : FG()), set_label(i));
         if (set_is_toggle(i)) {
-            font_draw(FONT_REGULAR, 18, x, y + (ui.land ? 36 : 42), A(SUB()), set_toggle_on(i) ? "on" : "off");
+            font_draw(FONT_REGULAR, 18, x, y + (ui.land ? 36 : 42), A(SUB()), tr(set_toggle_on(i) ? S_ON : S_OFF));
             wp_switch(ui.W - 110 + g_ox, y + 10, set_toggle_on(i));
         } else {
             font_draw_fit(FONT_REGULAR, 18, x, y + (ui.land ? 36 : 42), ui.W - 60, A(SUB()), v);

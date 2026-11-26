@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include "i18n.h"
 #include "sys.h"
 #include "ui.h"
 
@@ -99,7 +100,7 @@ static void page_library(void) {
     float W = ui.W, H = ui.H, oy = g_oy;
     float x = 32, top = 84 + oy;
     char path[540];
-    snprintf(path, sizeof path, "%s", ui.br.path[0] ? ui.br.path : "Devices");
+    snprintf(path, sizeof path, "%s", ui.br.path[0] ? ui.br.path : tr(S_DEVICES));
     if (ui.br.path[0]) {
         icon_prev(x + 6, top + 12, 7, A(ACC()));
         ui_hit(0, top - 6, W, 40, ACT_UP, 0);
@@ -140,7 +141,7 @@ static void page_library(void) {
         g_alpha = sa;
     }
     gfx_noclip();
-    if (!ui.br.n) font_draw(FONT_REGULAR, 18, x, ly + 12, A(SUB()), "No MP3, OGG, FLAC or WAV files here");
+    if (!ui.br.n) font_draw(FONT_REGULAR, 18, x, ly + 12, A(SUB()), tr(S_NO_FILES));
     /* mini player */
     float my = H - mini;
     gfx_rect(0, my, W, mini, A(cfg.dark ? col_hex(0x0E0E0E) : col_hex(0xEBEBE8)));
@@ -192,7 +193,7 @@ static void draw_page(int p) {
 }
 
 static void header(void) {
-    static const char *t[3] = {"Now Playing", "Library", "Settings"};
+    const char *t[3] = {tr(S_NOW_PLAYING), tr(S_LIBRARY), tr(S_SETTINGS_CAP)};
     float x = 32, y = 26;
     float tx[3], tw[3];
     for (int i = 0; i < 3; i++) {

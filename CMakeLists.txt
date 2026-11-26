@@ -22,7 +22,7 @@ include_directories(${VITASDK}/arm-vita-eabi/include/freetype2)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2 -ffast-math -Wall -Wno-unused-parameter -std=gnu11")
 
 add_executable(vibe
-  src/main_vita.c src/app.c src/ui.c src/font.c src/gfx_common.c src/gfx_vita.c
+  src/main_vita.c src/app.c src/ui.c src/font.c src/shape.c src/i18n.c src/gfx_common.c src/gfx_vita.c
   src/skin_metro.c src/skin_retro.c src/skin_minimal.c
   src/player.c src/decoder.c src/dec_mp3.c src/dec_ogg.c src/dec_flac.c src/dec_wav.c
   src/sys_vita.c src/config.c src/browser.c)
@@ -43,4 +43,7 @@ vita_create_vpk(vibe.vpk ${VITA_TITLEID} eboot.bin
   FILE sce_sys/livearea/contents/template.xml sce_sys/livearea/contents/template.xml
   FILE assets/fonts/OpenSans-Light.ttf assets/fonts/OpenSans-Light.ttf
   FILE assets/fonts/OpenSans-Regular.ttf assets/fonts/OpenSans-Regular.ttf
-  FILE assets/fonts/ShareTechMono.ttf assets/fonts/ShareTechMono.ttf)
+  FILE assets/fonts/ShareTechMono.ttf assets/fonts/ShareTechMono.ttf
+  FILE assets/fonts/NotoSansSC.ttf assets/fonts/NotoSansSC.ttf
+  FILE assets/fonts/NotoSansDevanagari.ttf assets/fonts/NotoSansDevanagari.ttf
+  FILE assets/fonts/NotoSansArabic.ttf assets/fonts/NotoSansArabic.ttf)

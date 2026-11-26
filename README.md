@@ -28,6 +28,11 @@ background playback and an aggressive battery policy.
 - **Orientation:** landscape, portrait (console turned left, buttons up) or portrait
   flipped. D-pad and touch are remapped so "up" is always up on screen.
 - **Themes:** true-black dark (#000000) and light, 6 accent colours.
+- **Languages:** English (default), Русский, Українська, 简体中文, Español, Português,
+  हिन्दी, العربية, Français. Pick one in Settings → language; it is saved to
+  `ux0:data/Vibe/config.txt` (`lang=0..8`). Arabic joins its letters and runs right-to-left;
+  Hindi vowel signs are placed before their consonant (no conjunct ligatures yet).
+  Chinese covers the 3 755 common GB2312 characters.
 - **Skins:**
   - **Windows Phone Metro** — panorama "music" hub with parallax gradient header,
     pivots, circle buttons, app bar, Zune-style giant drifting artist name,
@@ -70,7 +75,8 @@ Settings live in `ux0:data/Vibe/config.txt`.
   optional permanent 60 fps in settings).
 - Portrait rotation and burn-in shift are folded into the GPU projection matrix,
   so they cost nothing.
-- VPK ≈ 1.3 MB; fonts are subset (Latin + Cyrillic), no bitmap assets besides LiveArea.
+- VPK ≈ 2.1 MB; fonts are subset (Latin/Cyrillic, GB2312 Chinese, Devanagari, Arabic),
+  no bitmap assets besides LiveArea.
 
 ## Building
 
@@ -95,7 +101,9 @@ make -C tools/preview && tools/preview/vibe_preview docs/previews
 | `src/dec_*.c` | MP3 / OGG / FLAC / WAV decoders + tag & cover parsing |
 | `src/sys_vita.c` | background run, BGM port, power ticks, display, clocks |
 | `src/gfx_vita.c` / `gfx_host.c` | vita2d backend (rotation via projection) / Cairo preview backend |
-| `src/font.c` | FreeType glyph atlas with Cyrillic fallback |
+| `src/font.c` | FreeType glyph atlas with script fallback (Regular → CJK / Devanagari / Arabic) |
+| `src/shape.c` | Arabic joining + lam-alef, Devanagari vowel-sign order, RTL run order |
+| `src/i18n.c` | UI strings for the nine languages |
 | `src/app.c`, `ui.c` | pages, touch/buttons, settings, FFT visualiser, icons |
 | `src/skin_*.c` | the three skins |
 
@@ -112,4 +120,5 @@ with the AI flag in NeoVitaDB.
 - [libvita2d](https://github.com/xerpi/libvita2d), mpg123 (LGPL-2.1), libvorbis/libogg
   (BSD), libFLAC (BSD), FreeType (FTL), libjpeg-turbo, libpng, zlib.
 - Fonts: Open Sans and Share Tech Mono, SIL Open Font License (`assets/fonts/OFL-*.txt`).
+  Noto Sans SC, Noto Sans Devanagari and Noto Sans Arabic subsets, also OFL (`assets/fonts/OFL-NotoSans.txt`).
 - Not affiliated with Microsoft or Sony; the Metro skin is an homage to the WP7/8 design language.

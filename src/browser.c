@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "decoder.h"
+#include "i18n.h"
 #ifdef __vita__
 #include <psp2/io/stat.h>
 #endif
@@ -13,11 +14,11 @@
 static const char *g_roots[] = {"ux0:", "uma0:", "imc0:", "xmc0:", "ur0:"};
 
 const char *browser_device_label(const char *name) {
-    if (!strcmp(name, "ux0:")) return "memory card / sd2vita";
-    if (!strcmp(name, "uma0:")) return "usb / sd2vita (uma0)";
-    if (!strcmp(name, "imc0:")) return "internal storage";
-    if (!strcmp(name, "xmc0:")) return "memory card (xmc0)";
-    if (!strcmp(name, "ur0:")) return "system storage";
+    if (!strcmp(name, "ux0:")) return tr(S_DEV_UX0);
+    if (!strcmp(name, "uma0:")) return tr(S_DEV_UMA0);
+    if (!strcmp(name, "imc0:")) return tr(S_DEV_IMC0);
+    if (!strcmp(name, "xmc0:")) return tr(S_DEV_XMC0);
+    if (!strcmp(name, "ur0:")) return tr(S_DEV_UR0);
     return "";
 }
 
@@ -51,19 +52,55 @@ static int cmp(const void *pa, const void *pb) {
 
 #ifdef __vita__
 #include <psp2/io/dirent.h>
+static int ieq(const char *a, const char *b) {
+    for (; *a && *b; a++, b++)
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
+    return *a == *b;
+}
 /* Talk to sceIo directly: newlib's opendir() resolves the path and stats it first,
  * which fails on some SD2Vita / exFAT folders that sceIoDopen opens fine. */
 static int dopen_any(const char *path) {
     int fd = sceIoDopen(path);
     if (fd >= 0) return fd;
-    /* retry with the other spelling: "ux0:/Music" <-> "ux0:Music" */
-    char alt[600];
+    int first = fd;
     const char *c = strchr(path, ':');
-    if (c && c[1] == '/') snprintf(alt, sizeof alt, "%.*s%s", (int)(c - path + 1), path, c + 2);
-    else if (c) snprintf(alt, sizeof alt, "%.*s/%s", (int)(c - path + 1), path, c + 1);
-    else return fd;
-    int fd2 = sceIoDopen(alt);
-    return fd2 >= 0 ? fd2 : fd;
+    if (!c || !c[1]) return first;
+    /* spellings of a device child: "ux0:music", "ux0:/music", a trailing slash, Music vs music */
+    int dev = (int)(c - path) + 1;
+    const char *rest = c[1] == '/' ? c + 2 : c + 1;
+    if (!*rest) return first;
+    static const char *forms[] = {"%.*s%s", "%.*s/%s", "%.*s%s/", "%.*s/%s/"};
+    for (int cap = 0; cap < 2; cap++) {
+        char name[256];
+        snprintf(name, sizeof name, "%s", rest);
+        if (cap && name[0] >= 'a' && name[0] <= 'z') name[0] -= 32;
+        for (unsigned f = 0; f < sizeof forms / sizeof *forms; f++) {
+            char alt[600];
+            snprintf(alt, sizeof alt, forms[f], dev, path, name);
+            fd = sceIoDopen(alt);
+            if (fd >= 0) return fd;
+        }
+    }
+    /* last resort: take the exact on-disk spelling from the device root listing */
+    if (strchr(rest, '/')) return first;
+    char root[16];
+    snprintf(root, sizeof root, "%.*s/", dev, path);
+    int pd = sceIoDopen(root);
+    if (pd < 0) return first;
+    SceIoDirent de;
+    fd = first;
+    for (;;) {
+        memset(&de, 0, sizeof de);
+        if (sceIoDread(pd, &de) <= 0) break;
+        if (ieq(de.d_name, rest)) {
+            char exact[600];
+            snprintf(exact, sizeof exact, "%s%s", root, de.d_name);
+            fd = sceIoDopen(exact);
+            break;
+        }
+    }
+    sceIoDclose(pd);
+    return fd >= 0 ? fd : first;
 }
 static int dir_exists(const char *p) {
     int fd = dopen_any(p);
